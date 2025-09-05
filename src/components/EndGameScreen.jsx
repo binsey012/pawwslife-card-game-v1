@@ -1,6 +1,8 @@
 import { getEffectMeta } from '../utils/abilities'
 
-const EndGameScreen = ({ winner, playerScore, opponentScore, locations = [], onRestart }) => {
+const EndGameScreen = ({ winner, playerScore = [0,0,0], opponentScore = [0,0,0], locations = [], onRestart }) => {
+  const playerParksWon = playerScore.filter((s, i) => s > opponentScore[i]).length
+  const opponentParksWon = opponentScore.filter((s, i) => s > playerScore[i]).length
   const getWinnerMessage = () => {
     switch (winner) {
       case 'player':
@@ -47,6 +49,10 @@ const EndGameScreen = ({ winner, playerScore, opponentScore, locations = [], onR
           {getWinnerMessage()}
         </h1>
 
+        <div className="text-lg mb-4 text-gray-700">
+          Parks won: <span className="font-bold text-green-600">You {playerParksWon}</span> · <span className="font-bold text-red-600">AI {opponentParksWon}</span>
+        </div>
+
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4 text-gray-700">Final Scores:</h2>
           <div className="grid grid-cols-3 gap-4">
@@ -68,12 +74,11 @@ const EndGameScreen = ({ winner, playerScore, opponentScore, locations = [], onR
                 <div className="text-lg font-bold text-pink-600 mb-2">
                   AI: {opponentScore[index]}
                 </div>
-                <div className={`text-sm font-bold ${
-                  getLocationResult(index).includes('YOU') ? 'text-green-600' : 
-                  getLocationResult(index).includes('AI') ? 'text-red-600' : 'text-gray-600'
-                }`}>
-                  {getLocationResult(index)}
-                </div>
+                {(() => {
+                  const res = getLocationResult(index)
+                  const color = res.includes('YOU') ? 'text-green-600' : res.includes('AI') ? 'text-red-600' : 'text-gray-600'
+                  return <div className={`text-sm font-bold ${color}`}>{res}</div>
+                })()}
               </div>
             )})}
           </div>

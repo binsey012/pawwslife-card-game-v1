@@ -11,6 +11,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
+  cursor: url('/cursors/paw-default.cur'), auto;
 }
 
 /* Card Animations */
@@ -22,6 +23,10 @@ body {
   transform: translateY(-8px) scale(1.05);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
 }
+
+.paw-pointer { cursor: url('/cursors/paw-pointer.cur'), pointer; }
+.paw-grab { cursor: url('/cursors/paw-grab.cur'), grab; }
+.paw-grabbing { cursor: url('/cursors/paw-grab.cur'), grabbing; }
 
 /* Location Cards */
 .location-card {
@@ -35,6 +40,12 @@ body {
 .location-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Drag-target styling */
+.location-card.drag-over {
+  border-color: #10b981;
+  box-shadow: 0 0 0 4px rgba(16,185,129,0.2);
 }
 
 .location-winner {
@@ -101,23 +112,40 @@ body {
 .animate-sparkle { animation: sparkle 1s ease-in-out infinite; }
 .animate-power-pulse { animation: power-pulse 0.5s ease-in-out; }
 
+/* Sparkle burst for placements */
+.sparkle-burst {
+  position: absolute;
+  width: 12px; height: 12px;
+  background: radial-gradient(circle, #fde68a 0%, rgba(253,230,138,0) 70%);
+  border-radius: 50%;
+  animation: sparkle 0.8s ease-out forwards;
+}
+
+/* Fun paw cursors (optional, requires public/cursors) */
+body { cursor: url('/cursors/paw-default.cur'), auto; }
+.card-hover:hover { cursor: url('/cursors/paw-pointer.cur'), pointer; }
+.location-card:hover { cursor: url('/cursors/paw-grab.cur'), grab; }
+
 /* Particle Effects */
 .particle {
   position: absolute;
   pointer-events: none;
-  animation: particle-float 2s ease-out forwards;
+  animation: particle-float 1.8s ease-out forwards;
 }
 
 @keyframes particle-float {
   0% { 
-    transform: translateY(0) scale(1);
+  transform: translateY(0) translateX(0) scale(1) rotate(0deg);
     opacity: 1;
   }
   100% { 
-    transform: translateY(-100px) scale(0);
+  transform: translateY(-100px) translateX(40px) scale(0.4) rotate(25deg);
     opacity: 0;
   }
 }
+
+/* Drop zone hover */
+.ring-yellow-300 { box-shadow: 0 0 0 3px rgba(253, 224, 71, 0.9) inset; }
 
 /* Game UI Enhancements */
 .energy-indicator {

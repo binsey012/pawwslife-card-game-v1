@@ -58,7 +58,7 @@ const Card = ({ card, size = "medium", isOpponent = false, canPlay = true, actua
   {/* Puppy Image */}
       <div className="flex-1 flex items-center justify-center relative">
         <img 
-          src={card.image || "/images/puppies/default.png"} 
+          src={card.image || "/images/cards/_placeholder.png"} 
           alt={card.name}
           className="w-full h-full object-cover rounded transition-transform duration-200 group-hover:scale-110"
           onError={(e) => {

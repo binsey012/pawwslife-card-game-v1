@@ -87,13 +87,16 @@ function App() {
   }
 
   const initializeGame = () => {
-    const shuffledPlayerDeck = [...PLAYER_DECK].sort(() => Math.random() - 0.5)
+    // Prefer custom deck if available
+    const customDeck = gameStateManager.current.loadCustomDeck()
+    const baseDeck = Array.isArray(customDeck) && customDeck.length > 0 ? customDeck : PLAYER_DECK
+    const shuffledPlayerDeck = [...baseDeck].sort(() => Math.random() - 0.5)
     const shuffledOpponentDeck = [...OPPONENT_DECK].sort(() => Math.random() - 0.5)
     const shuffledLocations = [...LOCATIONS].sort(() => Math.random() - 0.5).slice(0, 3)
 
     setGameState(prev => ({
       ...prev,
-      playerHand: shuffledPlayerDeck.slice(0, 4),
+  playerHand: shuffledPlayerDeck.slice(0, 4),
       opponentHand: shuffledOpponentDeck.slice(0, 4),
       locations: shuffledLocations,
       gamePhase: 'playing',
@@ -120,12 +123,14 @@ function App() {
     const newPlayerBoard = [...gameState.playerBoard]
     newPlayerBoard[locationIndex] = [...newPlayerBoard[locationIndex], card]
 
-    setGameState(prev => ({
+  setGameState(prev => ({
       ...prev,
       playerHand: newHand,
       playerBoard: newPlayerBoard,
       playerEnergy: prev.playerEnergy - card.cost
     }))
+  // Clear selection after playing
+  setSelectedCardIndex(null)
 
     // Update scores
     updateScores(newPlayerBoard, gameState.opponentBoard)
@@ -136,8 +141,22 @@ function App() {
     }, 1000)
   }
 
+  // Place the currently selected card at a location (overlay button)
+  const placeSelectedCardAt = (selectedIndex, locationIndex) => {
+    if (selectedIndex == null) return
+    playCard(selectedIndex, locationIndex)
+    setSelectedCardIndex(null)
+  }
+
+  // Handle drag-and-drop from hand to a location
+  const dropCardAt = (cardIndex, locationIndex) => {
+    playCard(cardIndex, locationIndex)
+    setSelectedCardIndex(null)
+  }
+
   const aiTurn = () => {
-    const availableCards = gameState.opponentHand.filter(card => card.cost <= gameState.playerEnergy)
+    // AI uses current turn as available energy budget (simple rule)
+    const availableCards = gameState.opponentHand.filter(card => card.cost <= gameState.turn)
     if (availableCards.length === 0) {
       endTurn()
       return
@@ -183,32 +202,29 @@ function App() {
     }
   }
 
-  const updateScores = (playerBoard, opponentBoard) => {
+  const computeScores = (playerBoard, opponentBoard) => {
     const newPlayerScore = [0, 0, 0]
     const newOpponentScore = [0, 0, 0]
-
-    for (let locationIndex = 0; locationIndex < 3; locationIndex++) {
-      const location = gameState.locations[locationIndex]
-      
-      // Calculate player power
-      playerBoard[locationIndex].forEach(card => {
-        const allCardsAtLocation = [
-          ...playerBoard[locationIndex].map(c => ({ ...c, isPlayer: true })),
-          ...opponentBoard[locationIndex].map(c => ({ ...c, isPlayer: false }))
-        ]
-        newPlayerScore[locationIndex] += calculateCardPower(card, location, allCardsAtLocation, true)
-      })
-
-      // Calculate opponent power
-      opponentBoard[locationIndex].forEach(card => {
-        const allCardsAtLocation = [
-          ...playerBoard[locationIndex].map(c => ({ ...c, isPlayer: true })),
-          ...opponentBoard[locationIndex].map(c => ({ ...c, isPlayer: false }))
-        ]
-        newOpponentScore[locationIndex] += calculateCardPower(card, location, allCardsAtLocation, false)
-      })
+    for (let i = 0; i < 3; i++) {
+      const location = gameState.locations[i]
+      const all = [
+        ...playerBoard[i].map(c => ({ ...c, isPlayer: true })),
+        ...opponentBoard[i].map(c => ({ ...c, isPlayer: false })),
+      ]
+      // Player
+      for (const card of playerBoard[i]) {
+        newPlayerScore[i] += calculateCardPower(card, location, all, true)
+      }
+      // Opponent
+      for (const card of opponentBoard[i]) {
+        newOpponentScore[i] += calculateCardPower(card, location, all, false)
+      }
     }
+    return { newPlayerScore, newOpponentScore }
+  }
 
+  const updateScores = (playerBoard, opponentBoard) => {
+    const { newPlayerScore, newOpponentScore } = computeScores(playerBoard, opponentBoard)
     setGameState(prev => ({
       ...prev,
       playerScore: newPlayerScore,
@@ -217,36 +233,53 @@ function App() {
   }
 
   const endGame = () => {
-    const playerWins = gameState.playerScore.filter((score, i) => score > gameState.opponentScore[i]).length
-    const opponentWins = gameState.opponentScore.filter((score, i) => score > gameState.playerScore[i]).length
+    // Recompute scores from the latest boards to avoid any stale state
+    const { newPlayerScore, newOpponentScore } = computeScores(gameState.playerBoard, gameState.opponentBoard)
+    const playerParksWon = newPlayerScore.filter((s, i) => s > newOpponentScore[i]).length
+    const opponentParksWon = newOpponentScore.filter((s, i) => s > newPlayerScore[i]).length
 
     let winner = 'tie'
-    if (playerWins > opponentWins) {
+    if (playerParksWon > opponentParksWon) {
       winner = 'player'
-      if (soundManager.current && typeof soundManager.current.playVictory === 'function') {
-        soundManager.current.playVictory()
-      }
-    } else if (opponentWins > playerWins) {
+      soundManager.current?.playVictory?.()
+    } else if (opponentParksWon > playerParksWon) {
       winner = 'opponent'
-      if (soundManager.current && typeof soundManager.current.playDefeat === 'function') {
-        soundManager.current.playDefeat()
+      soundManager.current?.playDefeat?.()
+    } else {
+      // Points only as tie-breaker when parks are equal
+      const totalPlayer = newPlayerScore.reduce((a, b) => a + b, 0)
+      const totalOpponent = newOpponentScore.reduce((a, b) => a + b, 0)
+      if (totalPlayer > totalOpponent) {
+        winner = 'player'
+        soundManager.current?.playVictory?.()
+      } else if (totalOpponent > totalPlayer) {
+        winner = 'opponent'
+        soundManager.current?.playDefeat?.()
+      } else {
+        soundManager.current?.playTie?.()
       }
     }
 
+    // Lock the final scores and winner into state
     setGameState(prev => ({
       ...prev,
       gamePhase: 'gameOver',
-      winner
+      winner,
+      playerScore: newPlayerScore,
+      opponentScore: newOpponentScore,
+      playerParksWon,
+      opponentParksWon,
     }))
 
     // Update progress and check achievements
-    const newAchievements = gameStateManager.current.checkAchievements(winner, gameState)
+    const result = winner === 'player' ? 'win' : winner === 'opponent' ? 'loss' : 'tie'
+    const newAchievements = gameStateManager.current.checkAchievements(result, gameState)
     if (newAchievements.length > 0) {
       setShowAchievement(newAchievements[0])
       setTimeout(() => setShowAchievement(null), 5000)
     }
 
-    const updatedProgress = gameStateManager.current.updateProgress(winner)
+  const updatedProgress = gameStateManager.current.updateProgress(result)
     setProgress(updatedProgress)
   }
 
@@ -440,7 +473,10 @@ function App() {
         winner={gameState.winner}
         playerScore={gameState.playerScore}
         opponentScore={gameState.opponentScore}
-        onMoveCard={moveCard}
+  onMoveCard={moveCard}
+  selectedCardIndex={selectedCardIndex}
+  onPlaceSelectedCard={(cardIdx, locIdx) => placeSelectedCardAt(cardIdx ?? selectedCardIndex, locIdx)}
+  onDropCard={dropCardAt}
       />
 
       <PlayerHand 

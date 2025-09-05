@@ -362,4 +362,24 @@ export class GameStateManager {
       challenge: challenges[Math.floor(Math.random() * challenges.length)]
     }
   }
+
+  // Update aggregate progress after a game
+  updateProgress(gameResult) {
+    const progress = this.loadProgress()
+    const next = { ...progress }
+    next.totalGames = (next.totalGames || 0) + 1
+    if (gameResult === 'win') {
+      next.gamesWon = (next.gamesWon || 0) + 1
+      next.winStreak = (next.winStreak || 0) + 1
+      next.bestWinStreak = Math.max(next.bestWinStreak || 0, next.winStreak)
+    } else if (gameResult === 'loss') {
+      next.gamesLost = (next.gamesLost || 0) + 1
+      next.winStreak = 0
+    } else {
+      next.gamesTied = (next.gamesTied || 0) + 1
+      // Streak unchanged
+    }
+    this.saveProgress(next)
+    return next
+  }
 }
